@@ -1,24 +1,81 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const dns = require("node:dns");
 const app = express();
 
 // Basic Configuration
 const port = process.env.PORT || 3000;
 
+let urlDatabase = [{ original_url: "https://freeCodeCamp.org", short_url: 1 }];
+const setId = () => urlDatabase.length + 1;
+class URL {
+  constructor(url) {
+    this.original_url = url;
+    this.short_url = setId();
+  }
+}
+
 app.use(cors());
 
-app.use('/public', express.static(`${process.cwd()}/public`));
+app.use("/public", express.static(`${process.cwd()}/public`));
 
-app.get('/', function(req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
+app.use(express.urlencoded({ extended: false }));
+
+app.get("/", function (req, res) {
+  res.sendFile(process.cwd() + "/views/index.html");
 });
 
 // Your first API endpoint
-app.get('/api/hello', function(req, res) {
-  res.json({ greeting: 'hello API' });
+app.get("/api/hello", function (req, res) {
+  res.json({ greeting: "hello API" });
 });
 
-app.listen(port, function() {
+app.post("/api/shorturl", (req, res) => {
+  let { url } = req.body;
+  const urlRegex = /^https?:\/\//;
+  if (!urlRegex.test(url)) {
+    res.json({
+      error: "Invalid URL",
+    });
+  } else {
+    const host = url.replace(/^https?:\/\//, "");
+    dns.lookup(host, (err) => {
+      if (err) {
+        res.json({ error: "Invalid URL" });
+      } else {
+        const checkIfExists = urlDatabase.find(
+          (obj) => obj.original_url === url
+        );
+        if (!checkIfExists) {
+          const newUrl = new URL(url);
+          urlDatabase.push(newUrl);
+          res.json(newUrl);
+        } else {
+          res.json(checkIfExists);
+        }
+      }
+    });
+  }
+});
+
+app.get("/api/shorturl/:short_url?", (req, res) => {
+  const { short_url } = req.params;
+  console.log("id", short_url);
+  const checkIfExists = urlDatabase.find(
+    (obj) => obj.short_url === parseInt(short_url)
+  );
+  if (!short_url) {
+    res.redirect("/");
+  } else {
+    if (!checkIfExists) {
+      res.json({ error: "No short URL found for the given input" });
+    } else {
+      res.redirect(checkIfExists.original_url);
+    }
+  }
+});
+
+app.listen(port, function () {
   console.log(`Listening on port ${port}`);
 });
