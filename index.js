@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const dns = require("node:dns");
+const URL = require("url").URL;
 const app = express();
 
 // Basic Configuration
@@ -9,7 +10,7 @@ const port = process.env.PORT || 3000;
 
 let urlDatabase = [{ original_url: "https://freeCodeCamp.org", short_url: 1 }];
 const setId = () => urlDatabase.length + 1;
-class URL {
+class urlObj {
   constructor(url) {
     this.original_url = url;
     this.short_url = setId();
@@ -33,30 +34,28 @@ app.get("/api/hello", function (req, res) {
 
 app.post("/api/shorturl", (req, res) => {
   let { url } = req.body;
-  const urlRegex = /^https?:\/\//;
-  if (!urlRegex.test(url)) {
-    res.json({
+  let parseUrl;
+  try {
+    parseUrl = new URL(url);
+  } catch (err) {
+    return res.json({
       error: "Invalid URL",
     });
-  } else {
-    const host = url.replace(/^https?:\/\//, "");
-    dns.lookup(host, (err) => {
-      if (err) {
-        res.json({ error: "Invalid URL" });
-      } else {
-        const checkIfExists = urlDatabase.find(
-          (obj) => obj.original_url === url
-        );
-        if (!checkIfExists) {
-          const newUrl = new URL(url);
-          urlDatabase.push(newUrl);
-          res.json(newUrl);
-        } else {
-          res.json(checkIfExists);
-        }
-      }
-    });
   }
+  dns.lookup(parseUrl.hostname, (err) => {
+    if (err) {
+      res.json({ error: "Invalid URL" });
+    } else {
+      const checkIfExists = urlDatabase.find((obj) => obj.original_url === url);
+      if (!checkIfExists) {
+        const newUrl = new urlObj(url);
+        urlDatabase.push(newUrl);
+        res.json(newUrl);
+      } else {
+        res.json(checkIfExists);
+      }
+    }
+  });
 });
 
 app.get("/api/shorturl/:short_url?", (req, res) => {
